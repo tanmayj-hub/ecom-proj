@@ -1,13 +1,22 @@
-name: Docker Build & Push to AWS ECR
+name: Docker Build & Push to AWS ECR (Dynamic Microservices)
 
 on:
   push:
     branches:
-      - main  # Triggers CI/CD on every push to main branch
+      - main
+    paths:
+      - 'microservices/product-service/**'
+      - 'microservices/cart-service/**'
+      - 'microservices/order-service/**'
+      - 'microservices/inventory-service/**'
+      - 'microservices/payment-service/**'
+      - 'microservices/user-auth-service/**'
+      - 'microservices/notification-service/**'
+      - 'microservices/search-service/**'
 
 jobs:
   build-and-push:
-    name: Build & Push Docker Image
+    name: Build & Push Updated Microservice
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +33,35 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, Tag, and Push Docker Image
+      - name: Determine Which Microservice Changed
+        id: determine-service
         run: |
-          docker build -t ${{ secrets.ECR_REPOSITORY }}:latest .
-          docker push ${{ secrets.ECR_REPOSITORY }}:latest
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+          echo "Changed files: $CHANGED_FILES"
+
+          if echo "$CHANGED_FILES" | grep -q "microservices/product-service/"; then
+            echo "SERVICE_NAME=product-service" >> $GITHUB_ENV
+          elif echo "$CHANGED_FILES" | grep -q "microservices/cart-service/"; then
+            echo "SERVICE_NAME=cart-service" >> $GITHUB_ENV
+          elif echo "$CHANGED_FILES" | grep -q "microservices/order-service/"; then
+            echo "SERVICE_NAME=order-service" >> $GITHUB_ENV
+          elif echo "$CHANGED_FILES" | grep -q "microservices/inventory-service/"; then
+            echo "SERVICE_NAME=inventory-service" >> $GITHUB_ENV
+          elif echo "$CHANGED_FILES" | grep -q "microservices/payment-service/"; then
+            echo "SERVICE_NAME=payment-service" >> $GITHUB_ENV
+          elif echo "$CHANGED_FILES" | grep -q "microservices/user-auth-service/"; then
+            echo "SERVICE_NAME=user-auth-service" >> $GITHUB_ENV
+          elif echo "$CHANGED_FILES" | grep -q "microservices/notification-service/"; then
+            echo "SERVICE_NAME=notification-service" >> $GITHUB_ENV
+          elif echo "$CHANGED_FILES" | grep -q "microservices/search-service/"; then
+            echo "SERVICE_NAME=search-service" >> $GITHUB_ENV
+          else
+            echo "No microservice change detected. Exiting..."
+            exit 0
+          fi
+
+      - name: Build, Tag, and Push Docker Image to AWS ECR
+        run: |
+          echo "Building Docker image for $SERVICE_NAME..."
+          docker build -t ${{ secrets.ECR_REPOSITORY }}/$SERVICE_NAME:latest ./microservices/$SERVICE_NAME
+          docker push ${{ secrets.ECR_REPOSITORY }}/$SERVICE_NAME:latest
