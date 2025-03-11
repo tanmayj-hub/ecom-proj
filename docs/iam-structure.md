@@ -1,21 +1,15 @@
-## ✅ **📌 How IAM Works in This Project**
-📌 IAM is structured using **groups, users, and roles** following **the least privilege principle**:
-- **Users do NOT have policies directly attached** 🚫  
-- **Users are assigned to IAM Groups** ✅  
-- **Certain operations require assuming IAM Roles** ✅  
+# 🏗️ AWS IAM Structure for E-Commerce Project
 
-### **IAM Flow:**
-1. **Users get basic permissions from IAM Groups** (Persistent Access).  
-2. **Users assume IAM Roles when they need additional permissions** (Temporary Access).  
-3. **CloudTrail & Security logs monitor all IAM actions.**  
-
-✅ **This follows real-world AWS security best practices.**
+## ✅ Overview
+This document describes the AWS IAM setup for our **secure, industry-standard** e-commerce project.  
+Following the **Principle of Least Privilege**, we use **IAM Groups, Roles, and OpenID Connect (OIDC)** for secure authentication.
 
 ---
 
-## ✅ **📌 IAM Groups, Users, and Roles**
-### **📌 1️⃣ IAM Groups & Their Policies**
-| **IAM Group**       | **Who Belongs Here?** | **Attached Policies** |
+## 🏢 **1. IAM Groups & Permissions**
+IAM Groups ensure that users inherit permissions **without directly attaching policies**.
+
+| **IAM Group**       | **Who Belongs Here?** | **Attached AWS Policies** |
 |---------------------|----------------------|-----------------------|
 | **Admins** 👑        | `AdminUser`         | ✅ `AdministratorAccess` |
 | **Developers** 👨‍💻 | `DevUser1`, `DevUser2` | ✅ `AmazonEKSClusterPolicy`, `AmazonEC2ContainerRegistryPowerUser`, `AmazonS3ReadOnlyAccess`, `AmazonDynamoDBReadOnlyAccess`, `AWSLambdaReadOnlyAccess` |
@@ -24,12 +18,14 @@
 | **Security** 🔒      | `SecurityUser1`      | ✅ `SecurityAudit`, `AWSCloudTrailReadOnlyAccess`, `AWSConfigRole`, `IAMReadOnlyAccess` |
 | **ReadOnly** 👀      | `ReadOnlyUser1`      | ✅ `ReadOnlyAccess` |
 
-✅ **IAM Groups control user permissions**.
+✅ **IAM Users are assigned to groups instead of having direct policies.**
 
 ---
 
-### **📌 2️⃣ IAM Users & Their Assigned Groups**
-| **IAM User**     | **Assigned IAM Group** | **Permissions (Through Group)** |
+## 👤 **2. IAM Users & Group Membership**
+IAM Users do not have direct permissions but inherit permissions from **IAM Groups**.
+
+| **IAM User**     | **Assigned IAM Group** | **Permissions (Inherited from Group)** |
 |-----------------|----------------------|--------------------------------|
 | `AdminUser`     | `Admins` 👑 | ✅ Full AWS Control |
 | `DevUser1`      | `Developers` 👨‍💻 | ✅ Limited EKS, ECR, DynamoDB, Lambda Access |
@@ -39,20 +35,53 @@
 | `SecurityUser1` | `Security` 🔒 | ✅ IAM, CloudTrail, Security Monitoring |
 | `ReadOnlyUser1` | `ReadOnly` 👀 | ✅ Read-Only AWS Access |
 
-✅ **IAM Users do NOT have direct policies. They inherit permissions from IAM Groups.**
+✅ **Developers do NOT have direct ECR push access but use GitHub OIDC for authentication.**
 
 ---
 
-### **📌 3️⃣ IAM Roles (For Temporary Access)**
+## 🔄 **3. IAM Roles (For Temporary Access & Automation)**
+IAM Roles **provide temporary access** and are assumed dynamically when needed.
+
 | **IAM Role**            | **Who Assumes It?** | **Permissions Assigned** |
 |-------------------------|--------------------|-------------------------|
+| **`GitHubActionsRole`** 🚀 | GitHub Actions (OIDC) | ✅ `AmazonEC2ContainerRegistryFullAccess`, `AmazonS3FullAccess`, `CloudFrontFullAccess` |
 | **`EKSAdminRole`** 🎛️ | `DevOpsUser1` | ✅ `AmazonEKSClusterPolicy`, `AmazonEC2FullAccess` |
 | **`EKSNodeRole`** 🚀 | **EKS Worker Nodes** | ✅ `AmazonEKSWorkerNodePolicy` |
-| **`ECRPushRole`** 🐳 | `DevUser1`, `DevOpsUser1`, CI/CD | ✅ `AmazonEC2ContainerRegistryFullAccess` |
 | **`LambdaExecutionRole`** ⚡ | AWS Lambda | ✅ `AWSLambdaBasicExecutionRole` |
-| **`DatabaseAccessRole`** 🛢️ | `DBAdmin1`, Backend Microservices | ✅ `AmazonRDSFullAccess`, `AmazonDynamoDBFullAccess` |
 | **`LoggingRole`** 📊 | `SecurityUser1` | ✅ `CloudWatchLogsFullAccess`, `AWSCloudTrailFullAccess` |
-| **`S3DeployRole`** 🌐 | `DevUser1` | ✅ `AmazonS3FullAccess` (Upload Frontend to S3) |
-| **`CloudFrontInvalidationRole`** ⚡ | `DevUser1` | ✅ `CloudFrontFullAccess` (Invalidate CDN Cache) |
+| **`CloudFrontInvalidationRole`** ⚡ | `DevUser1` | ✅ `CloudFrontFullAccess` (For invalidating CDN cache) |
 
-✅ **IAM Roles allow temporary access for specific operations**.
+✅ **GitHub Actions uses `GitHubActionsRole` (OIDC) instead of static AWS credentials.**  
+✅ **Developers do not need manual AWS authentication for CI/CD.**  
+
+---
+
+## 🔄 **4. How GitHub Actions Authenticates Securely**
+🚀 We use **AWS OpenID Connect (OIDC) with GitHub Actions** to remove **AWS keys**.
+
+### **🔹 Summary: How This Structure Validates `DevUser1`**
+| **Step**                     | **How It’s Secured** |
+|-----------------------------|----------------------|
+| **1️⃣ DevUser1 pushes code to GitHub** | ✅ GitHub verifies `DevUser1` using SSH or PAT. |
+| **2️⃣ GitHub Actions starts CI/CD** | ✅ GitHub verifies that the commit is from `DevUser1`. |
+| **3️⃣ GitHub assumes IAM Role (OIDC)** | ✅ AWS validates GitHub's identity & repository. |
+| **4️⃣ GitHub builds & pushes Docker image to ECR** | ✅ AWS only allows trusted GitHub repos. |
+| **5️⃣ Deployment happens securely** | ✅ No AWS keys stored, no manual IAM role needed. |
+
+### **✅ New Approach (OIDC - Secure & Automated)**
+- **GitHub Actions assumes `GitHubActionsRole` dynamically via OIDC** ✅
+- **No static AWS credentials needed** ✅
+- **Automatically expires after use** ✅
+
+---
+
+## 🔥 **5. Final AWS IAM Security Best Practices**
+- **No AWS access keys stored in GitHub** ✅  
+- **Users inherit permissions from IAM Groups** ✅  
+- **Roles provide temporary access when needed** ✅  
+- **GitHub Actions uses OIDC for authentication** ✅  
+- **CloudTrail logs monitor all AWS IAM actions** ✅  
+
+🚀 **This setup is secure, scalable, and follows industry best-practices!**
+
+---
