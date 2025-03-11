@@ -22,6 +22,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 2  # Ensures previous commit is available for comparison
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -36,7 +39,7 @@ jobs:
       - name: Determine Which Microservice Changed
         id: determine-service
         run: |
-          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
           echo "Changed files: $CHANGED_FILES"
 
           if echo "$CHANGED_FILES" | grep -q "microservices/product-service/"; then
@@ -56,12 +59,17 @@ jobs:
           elif echo "$CHANGED_FILES" | grep -q "microservices/search-service/"; then
             echo "SERVICE_NAME=search-service" >> $GITHUB_ENV
           else
-            echo "No microservice change detected. Exiting..."
+            echo "No microservice change detected. Skipping build."
             exit 0
           fi
 
       - name: Build, Tag, and Push Docker Image to AWS ECR
         run: |
+          if [ -z "$SERVICE_NAME" ]; then
+            echo "No relevant changes detected. Skipping build."
+            exit 0
+          fi
+
           echo "Building Docker image for $SERVICE_NAME..."
           docker build -t ${{ secrets.ECR_REPOSITORY }}/$SERVICE_NAME:latest ./microservices/$SERVICE_NAME
           docker push ${{ secrets.ECR_REPOSITORY }}/$SERVICE_NAME:latest
