@@ -24,17 +24,16 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 2  # Ensures previous commit is available for comparison
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-            role-to-assume: arn:aws:iam::796973508195:role/GitHubActionsRole
-            role-session-name: GitHubActions
-            aws-region: ${{ secrets.AWS_REGION }}
-        
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          role-session-name: GitHubActions
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Determine Which Microservice Changed
@@ -72,5 +71,7 @@ jobs:
           fi
 
           echo "Building Docker image for $SERVICE_NAME..."
-          docker build -t ${{ secrets.ECR_REPOSITORY }}/$SERVICE_NAME:latest ./microservices/$SERVICE_NAME
-          docker push ${{ secrets.ECR_REPOSITORY }}/$SERVICE_NAME:latest
+          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecomdev/$SERVICE_NAME:latest ./microservices/$SERVICE_NAME
+          
+          echo "Pushing Docker image to ECR..."
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecomdev/$SERVICE_NAME:latest
