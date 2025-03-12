@@ -5,14 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'microservices/product-service/**'
-      - 'microservices/cart-service/**'
-      - 'microservices/order-service/**'
-      - 'microservices/inventory-service/**'
-      - 'microservices/payment-service/**'
-      - 'microservices/user-auth-service/**'
-      - 'microservices/notification-service/**'
-      - 'microservices/search-service/**'
+      - 'microservices/**'
 
 jobs:
   build-and-push:
@@ -23,8 +16,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 2  # Ensures previous commit is available for comparison
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2
 
       - name: Debug GitHub Actions Context
         run: env
@@ -32,17 +24,20 @@ jobs:
       - name: Debug OIDC Token
         run: |
           echo "Checking OIDC token request..."
-          curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          curl -v -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" || echo "OIDC Token Request Failed"
           echo "OIDC Token Request Complete."
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::796973508195:role/GitHubActionsRole  # Use actual AWS Account ID
+          role-to-assume: arn:aws:iam::796973508195:role/GitHubActionsRole
           role-session-name: GitHubActions
           aws-region: us-east-1
           audience: sts.amazonaws.com
+
+      - name: Verify AWS Credentials
+        run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: login-ecr
